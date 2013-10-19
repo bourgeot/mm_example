@@ -1,0 +1,299 @@
+<?php
+/*
+ * Implements hook_menu()
+ */
+function mm_example_menu() {
+  $items = array(
+    'mm-example/data' => array(
+      'page callback' => 'fetch_data',
+      'access callback' => true,
+      'delivery callback' => 'drupal_json_output',
+    ),
+		'mm-example/finger-spots' => array(
+			'page callback' => 'finger_spots',
+			'access callback' => true,
+		),
+		'mm-example/scroll' => array(
+			'page callback' => 'scroll',
+			'access callback' => true,
+		),
+		'mm-example/touch' => array(
+			'page callback' => 'touchx',
+			'access callback' => true,
+		),
+		'mm-example/touch-plus' => array(
+			'page callback' => 'touch_plus',
+			'access callback' => true,
+		),	
+);
+	return $items;
+}
+
+/*
+ *
+ */
+function fetch_data($start=null, $count=null) {
+	if(!is_numeric($start) || ($start < 0 || $start > 1000)) {
+		$start = 0;
+	}
+	if(!is_numeric($count) || $count < 0 ) {
+		$count = 100;
+	}
+	$q = "SELECT * FROM {top_songs} ts
+			ORDER BY ts.id";	
+	$result = db_query_range($q, $start, $count);
+	$data = $result->fetchAllAssoc('id');
+	return $data;
+}
+
+function finger_spots() {
+	$page = array();
+	$css = '.point {
+        width: 20px;
+        height: 20px;
+        position: absolute;
+        -webkit-border-radius: 10px;
+        background-color: blue;
+    }';
+	$ht = '<div class="point" style="left: \' + left + \'px ; top: \' + top + \'px"></div>';
+	$js = 'function touch(event) {
+					event.preventDefault();
+					for (var i=0; i<event.touches.length; i++) {
+							var top = event.touches[i].pageY-10;
+							var left = event.touches[i].pageX-10;
+							var html = \'' . $ht . '\';
+							document.getElementById("container").innerHTML += html;
+					}
+				}
+				function clean() {
+					document.getElementById("container").innerHTML = "";
+				}';
+	drupal_add_js($js,
+    array('type' => 'inline', 'scope' => 'footer', 'weight' => 5)
+	);
+	drupal_add_css($css, 'inline');
+	$page['action']= array(
+		'#type' => 'container',
+		'#attributes' => array(
+			'id' => 'container',
+			'ontouchstart' => 'touch(event)',
+			'ontouchend' =>'clean()',
+			'style' =>"background-color:red; width: 300px; height: 300px",
+		),
+	);
+	return $page;
+}
+function touchx() {
+	$page = array();
+	$page['coordinates'] = array(
+			'#markup' => '<p id="screenx">Screen-X:</p>
+				<p id="screeny">Screen-Y:</p>
+				<p id="clientx">Client-X:</p>
+				<p id="clienty">Client-Y:</p>
+				<p id="pagex">Page-X:</p>
+				<p id="pagey">Page-Y:</p>',
+		);
+	$js = 'var attr = document.createAttribute("ontouchstart");
+				attr.value = "touch(event)";
+				document.getElementById("main-content").setAttributeNode(attr);
+				attr = document.createAttribute("ontouchend");
+				attr.value = "clean()";
+				document.getElementById("main-content").setAttributeNode(attr);
+				function touch(event) {
+					event.preventDefault();
+					var i;
+					for (i=0; i<event.touches.length; i++) {
+						var sx = event.touches[i].screenX;
+						var sy = event.touches[i].screenY;
+						var cx = event.touches[i].clientX;
+						var cy = event.touches[i].clientY;
+						var px = event.touches[i].pageX;
+						var py = event.touches[i].pageY;
+						document.getElementById("screenx").innerHTML += i.toString() + ": " + sx.toString() + ", ";
+						document.getElementById("screeny").innerHTML += i.toString() + ": " + sy.toString() + ", ";
+						document.getElementById("pagex").innerHTML += i.toString() + ": " + px.toString() + ", ";
+						document.getElementById("pagey").innerHTML += i.toString() + ": " + py.toString() + ", ";	
+						document.getElementById("clientx").innerHTML += i.toString() + ": " + cx.toString() + ", "
+						document.getElementById("clienty").innerHTML += i.toString() + ": " + cy.toString() + ", ";
+					}
+				}
+				function clean() {
+					document.getElementById("screenx").innerHTML = "Screen-X:";
+					document.getElementById("screeny").innerHTML = "Screen-Y:";
+					document.getElementById("pagex").innerHTML = "Page-X:";
+					document.getElementById("pagey").innerHTML = "Page-Y:";
+					document.getElementById("clientx").innerHTML = "Client-X:";
+					document.getElementById("clienty").innerHTML = "Client-Y:";
+				}';
+	drupal_add_js($js,
+    array('type' => 'inline', 'scope' => 'footer', 'weight' => 5)
+	);
+	$css = '#main-content {
+        width: 300px;
+    }';
+	drupal_add_css($css, 'inline');
+	return $page;
+}
+
+function touch_plus() {
+	$page = array();
+	$page['coordinates'] = array(
+			'#markup' => '<p id="screenx">Screen-X:</p>
+				<p id="screeny">Screen-Y:</p>
+				<p id="clientx">Client-X:</p>
+				<p id="clienty">Client-Y:</p>
+				<p id="pagex">Page-X:</p>
+				<p id="pagey">Page-Y:</p>',
+		);
+	$js = 'if(is_touch_device()) {
+					var attr = document.createAttribute("ontouchstart");
+					attr.value = "touch(event)";
+					document.getElementById("main-content").setAttributeNode(attr);
+					attr = document.createAttribute("ontouchend");
+					attr.value = "clean()";
+					document.getElementById("main-content").setAttributeNode(attr);
+				}
+				else {
+					var attr = document.createAttribute("onmousedown");
+					attr.value = "touch(event)";
+					document.getElementById("main-content").setAttributeNode(attr);
+					attr = document.createAttribute("onmouseup");
+					attr.value = "clean()";
+					document.getElementById("main-content").setAttributeNode(attr);
+				}
+				function touch(event) {
+					event.preventDefault();
+					if(event.type == "mousedown") {
+						var sx = event.screenX;
+						var sy = event.screenY;
+						var cx = event.clientX;
+						var cy = event.clientY;
+						var px = event.pageX;
+						var py = event.pageY;						
+						document.getElementById("screenx").innerHTML += sx.toString();
+						document.getElementById("screeny").innerHTML += sy.toString();
+						document.getElementById("pagex").innerHTML += px.toString();
+						document.getElementById("pagey").innerHTML += py.toString();	
+						document.getElementById("clientx").innerHTML += cx.toString();
+						document.getElementById("clienty").innerHTML += cy.toString();
+					}
+					else {
+						var i;
+						for (i=0; i<event.touches.length; i++) {
+							var sx = event.touches[i].screenX;
+							var sy = event.touches[i].screenY;
+							var cx = event.touches[i].clientX;
+							var cy = event.touches[i].clientY;
+							var px = event.touches[i].pageX;
+							var py = event.touches[i].pageY;
+							document.getElementById("screenx").innerHTML += i.toString() + ": " + sx.toString() + ", ";
+							document.getElementById("screeny").innerHTML += i.toString() + ": " + sy.toString() + ", ";
+							document.getElementById("pagex").innerHTML += i.toString() + ": " + px.toString() + ", ";
+							document.getElementById("pagey").innerHTML += i.toString() + ": " + py.toString() + ", ";	
+							document.getElementById("clientx").innerHTML += i.toString() + ": " + cx.toString() + ", "
+							document.getElementById("clienty").innerHTML += i.toString() + ": " + cy.toString() + ", ";
+						}
+					}
+				}
+				function is_touch_device() {  //from stackoverflow question 4817029
+					try {  
+						document.createEvent("TouchEvent");  
+						return true;  
+					} catch (e) {  
+						return false;  
+					}  
+				}
+				function clean() {
+					document.getElementById("screenx").innerHTML = "Screen-X:";
+					document.getElementById("screeny").innerHTML = "Screen-Y:";
+					document.getElementById("pagex").innerHTML = "Page-X:";
+					document.getElementById("pagey").innerHTML = "Page-Y:";
+					document.getElementById("clientx").innerHTML = "Client-X:";
+					document.getElementById("clienty").innerHTML = "Client-Y:";
+				}';
+	drupal_add_js($js,
+    array('type' => 'inline', 'scope' => 'footer', 'weight' => 5)
+	);
+	$css = '#main-content {
+        width: 300px;
+    }';
+	drupal_add_css($css, 'inline');
+	return $page;
+}
+function scroll() {
+	$data = fetch_data(0);
+	foreach($data as $song) {
+		$songs[] = array(
+			'id' => $song->id,
+			'class' => array('song'),
+			'data' => '<strong><p class="title">' . $song->TITLE . '</p></strong>
+				<p class="artist">' . $song->ARTIST . '</p>
+				<p class="year">' . $song->YEAR . '</p>
+				<p class="THEME">' . $song->THEME . '</p>
+				<a href="' . $song->SPOTIFY_URL . '" class="spotify-url">' . $song->SPOTIFY_URL . '</a>',
+		);
+	}
+	//dsm($data);
+	$page = array(
+		'container' => array(
+			'#type' => 'container',
+			'#attributes' => array(
+				'id' => 'scrollarea',
+			),
+			'songlist' => array(
+				'#type' => 'ul',
+				'#theme' => 'item_list',
+				'#items' => $songs,
+				'#attributes' => array(
+					'id' => 'songlist',
+				),
+			),
+		),
+	);
+	$css='';
+	$js='var sa = document.getElementById("scrollarea");
+			var lastSong=document.getElementById("songlist").lastElementChild;
+			console.log(lastSong.id);
+			var newstuff;
+			var xhr = new XMLHttpRequest("GET", "/mm-example/data/" + lastSong.id, true);
+			xhr.onload = function(event) {
+				xhr.responseType = json;
+			}
+			xhr.send;
+	';
+	drupal_add_js($js,
+    array('type' => 'inline', 'scope' => 'footer', 'weight' => 5));
+	return $page;
+}
+/*
+http://www.amicontech.com/blog/infinite-scrolling-is-the-new-way-of-pagination/
+jQuery(function($){
+//Browsers Content area
+var windowHeight = window.innerHeight ? window.innerHeight : document.documentElement.clientHeight ? document.documentElement.clientHeight : document.body.clientHeight;
+$(window).scroll(function(e){
+//scroll position
+pageoffset = window.pageYOffset ? window.pageYOffset : document.documentElement.scrollTop ? document.documentElement.scrollTop : document.body.scrollTop;
+newPagePosition = pageoffset;
+nextPage = “url of next page request which will contain the next items to load”.
+//let’s call the next page after the page is scrolled 1/4<sup>th</sup> of total content area and be sure it is moved downwards
+if((windowHeight/4)<= newPagePosition){
+//wait for 500 milliseconds to confirm the user scroll action
+setTimeout(function(){
+//checking if scrolled to the same position
+if(newPagePosition!= oldPagePosition){
+$.ajax({
+type : ”GET”,
+url : nextPage,
+data : params,
+success : function(response){
+//Appends the response of nexPage to ul.items
+$(“ul.items”).append(response);
+});
+oldPagePosition = newPagePosition;
+}
+},500);
+}
+});
+});
+
+*/	

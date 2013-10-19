@@ -1,0 +1,4 @@
+name = MM Example
+description = Mobile Matters Example Module
+package = Z_Example
+core = 7.x
