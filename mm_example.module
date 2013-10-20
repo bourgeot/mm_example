@@ -33,8 +33,11 @@ function mm_example_menu() {
  *
  */
 function fetch_data($start=null, $count=null) {
+	$data = new stdClass();
 	if(!is_numeric($start) || ($start < 0 || $start > 1000)) {
 		$start = 0;
+		$data->loaded = "loaded";
+		return $data;
 	}
 	if(!is_numeric($count) || $count < 0 ) {
 		$count = 100;
@@ -43,6 +46,9 @@ function fetch_data($start=null, $count=null) {
 			ORDER BY ts.id";	
 	$result = db_query_range($q, $start, $count);
 	$data = $result->fetchAllAssoc('id');
+	if(count($data) == 0) {
+		$data["loaded"] = "loaded";
+	}
 	return $data;
 }
 
@@ -178,21 +184,33 @@ function touch_plus() {
 						document.getElementById("clienty").innerHTML += cy.toString();
 					}
 					else {
-						var i;
+						var i, sx, sy, cx, cy, px, py, sxs, sys, pxs, pys, cxs, cys;
+						sxs = "Screen-X:";
+						sys = "Screen-Y:";
+						pxs = "Page-X:";
+						pys = "Page-Y:";
+						cxs = "Client-X:";
+						cys = "Client-Y:";
 						for (i=0; i<event.touches.length; i++) {
-							var sx = event.touches[i].screenX;
-							var sy = event.touches[i].screenY;
-							var cx = event.touches[i].clientX;
-							var cy = event.touches[i].clientY;
-							var px = event.touches[i].pageX;
-							var py = event.touches[i].pageY;
-							document.getElementById("screenx").innerHTML += i.toString() + ": " + sx.toString() + ", ";
-							document.getElementById("screeny").innerHTML += i.toString() + ": " + sy.toString() + ", ";
-							document.getElementById("pagex").innerHTML += i.toString() + ": " + px.toString() + ", ";
-							document.getElementById("pagey").innerHTML += i.toString() + ": " + py.toString() + ", ";	
-							document.getElementById("clientx").innerHTML += i.toString() + ": " + cx.toString() + ", "
-							document.getElementById("clienty").innerHTML += i.toString() + ": " + cy.toString() + ", ";
+							sx = event.touches[i].screenX;
+							sy = event.touches[i].screenY;
+							cx = event.touches[i].clientX;
+							cy = event.touches[i].clientY;
+							px = event.touches[i].pageX;
+							py = event.touches[i].pageY;
+							sxs += i.toString() + ": " + sx.toString() + ", ";
+							sys += i.toString() + ": " + sy.toString() + ", ";
+							pxs += i.toString() + ": " + px.toString() + ", ";
+							pys += i.toString() + ": " + py.toString() + ", ";	
+							cxs += i.toString() + ": " + cx.toString() + ", "
+							cys += i.toString() + ": " + cy.toString() + ", ";
 						}
+						document.getElementById("screenx").innerHTML = sxs;
+						document.getElementById("screeny").innerHTML = sys;
+						document.getElementById("pagex").innerHTML = pxs;
+						document.getElementById("pagey").innerHTML = pys;
+						document.getElementById("clientx").innerHTML = cxs;
+						document.getElementById("clienty").innerHTML = cys;						
 					}
 				}
 				function is_touch_device() {  //from stackoverflow question 4817029
@@ -221,7 +239,7 @@ function touch_plus() {
 	return $page;
 }
 function scroll() {
-	$data = fetch_data(0);
+	$data = fetch_data(0, 25);
 	foreach($data as $song) {
 		$songs[] = array(
 			'id' => $song->id,
@@ -229,7 +247,7 @@ function scroll() {
 			'data' => '<strong><p class="title">' . $song->TITLE . '</p></strong>
 				<p class="artist">' . $song->ARTIST . '</p>
 				<p class="year">' . $song->YEAR . '</p>
-				<p class="THEME">' . $song->THEME . '</p>
+				<p class="theme">' . $song->THEME . '</p>
 				<a href="' . $song->SPOTIFY_URL . '" class="spotify-url">' . $song->SPOTIFY_URL . '</a>',
 		);
 	}
@@ -250,50 +268,93 @@ function scroll() {
 			),
 		),
 	);
-	$css='';
+	$css='p.theme {
+		background-color: yellow;
+	}
+	p.artist {
+		font-style: italic;
+	}
+	p.year {
+		font-weight: bold;
+	}
+	p.artist, p.year, p.theme {
+		display: inline;
+		}';
 	$js='var sa = document.getElementById("scrollarea");
+		var bottomNote = document.createElement("p");
+		bottomNote.innerHTML = "Loading more songs...please wait.";
+		bottomNote.id = "bottom-note";
+		bottomNote.class = "loading";
+		sa.appendChild(bottomNote);
+		if (window.addEventListener) {
+			addEventListener("DOMContentLoaded", maybeFetch, false); 
+			addEventListener("load", maybeFetch, false); 
+			addEventListener("scroll", maybeFetch, false); 
+			addEventListener("resize", maybeFetch, false); 
+		} else if (window.attachEvent)  {
+			attachEvent("DOMContentLoaded", maybeFetch());
+			attachEvent("load", maybeFetch);
+			attachEvent("scroll", maybeFetch);
+			attachEvent("resize", maybeFetch);
+		}
+		function isElementInViewport(el) {
+			//from stackoverflow.com question 123999
+			var rect = el.getBoundingClientRect();
+			return (
+				rect.top >= 0 &&
+				rect.left >= 0 &&
+				rect.bottom <= (window.innerHeight || document. documentElement.clientHeight) && 
+				rect.right <= (window.innerWidth || document. documentElement.clientWidth) 
+			);
+		}
+		function maybeFetch() {
 			var lastSong=document.getElementById("songlist").lastElementChild;
-			console.log(lastSong.id);
-			var newstuff;
-			var xhr = new XMLHttpRequest("GET", "/mm-example/data/" + lastSong.id, true);
-			xhr.onload = function(event) {
-				xhr.responseType = json;
+			var url = "/survey-info/mm-example/data/" + lastSong.id + "/50";			
+			if (isElementInViewport(bottomNote) && bottomNote.class == "loading") {
+				fetch( url, function() {
+					var res = JSON.parse(this.responseText);
+					var i, li, html;
+					if(res.loaded && res.loaded ==  "loaded") {
+						console.log(res);
+						//nothing left
+						bottomNote.innerHTML = "That\'s all there is!";
+						bottomNote.class = "loaded";						
+					}
+					else {
+						for( i in res) {
+							if(res[i].TITLE == "ALL DONE") {
+							}
+							
+							html = "<strong><p class=\"title\">" + res[i].TITLE + "</p></strong>";
+							html+= "<p class=\"artist\">" + res[i].ARTIST + "</p>";
+							html += "<p class=\"year\">" + res[i].YEAR + "</p>";
+							html += "<p class=\"theme\">" + res[i].THEME + "</p>";
+							html += "<a href=\"" + res[i].SPOTIFY_URL + "\"class=\"spotify-url\">" + res[i].SPOTIFY_URL + "</a>"; 
+							li = document.createElement("li");
+							li.innerHTML = html;
+							li.id = res[i].id;
+							li.class = "song";
+							document.getElementById("songlist").appendChild(li);
+						}
+					}
+				});
 			}
-			xhr.send;
+		}
+		function fetch(url, callback) {
+			var xhr = new XMLHttpRequest();
+			xhr.open("GET", url, true);
+			xhr.onreadystatechange = function() {
+				if (xhr.readyState == 4 && xhr.status == 200) {
+					callback.call(xhr);
+				}
+			}
+			xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+			xhr.send(null);
+		}
+
 	';
+	drupal_add_css($css, 'inline');	
 	drupal_add_js($js,
     array('type' => 'inline', 'scope' => 'footer', 'weight' => 5));
 	return $page;
 }
-/*
-http://www.amicontech.com/blog/infinite-scrolling-is-the-new-way-of-pagination/
-jQuery(function($){
-//Browsers Content area
-var windowHeight = window.innerHeight ? window.innerHeight : document.documentElement.clientHeight ? document.documentElement.clientHeight : document.body.clientHeight;
-$(window).scroll(function(e){
-//scroll position
-pageoffset = window.pageYOffset ? window.pageYOffset : document.documentElement.scrollTop ? document.documentElement.scrollTop : document.body.scrollTop;
-newPagePosition = pageoffset;
-nextPage = “url of next page request which will contain the next items to load”.
-//let’s call the next page after the page is scrolled 1/4<sup>th</sup> of total content area and be sure it is moved downwards
-if((windowHeight/4)<= newPagePosition){
-//wait for 500 milliseconds to confirm the user scroll action
-setTimeout(function(){
-//checking if scrolled to the same position
-if(newPagePosition!= oldPagePosition){
-$.ajax({
-type : ”GET”,
-url : nextPage,
-data : params,
-success : function(response){
-//Appends the response of nexPage to ul.items
-$(“ul.items”).append(response);
-});
-oldPagePosition = newPagePosition;
-}
-},500);
-}
-});
-});
-
-*/	
